@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Save Dycson</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;700;800;900&family=Roboto:wght@400;500&display=swap');
+
+:root{
+  --vh: 1vh;
+  --font-title: 'Cinzel', 'Inter', serif;
+  --font-ui: 'Inter', 'Roboto', sans-serif;
+  --font-body: 'Roboto', 'Inter', sans-serif;
+  --text-scale: 1;
+  --accent: #4a90e2;
+  --danger: #ef5350;
+  --success: #4caf50;
+  --gold: #ffd700;
+}
+*{ margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-tap-highlight-color:transparent; }
+html,body{ width:100%; height:100%; overflow:hidden; background:#000; font-family:var(--font-body); color:#fff; }
+
+/* ===== Root shell: strict 50/50 split, mobile-safe height ===== */
+#game-shell{
+  width:100vw;
+  height: calc(var(--vh, 1vh) * 100);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+/* ---- TOP 50%: Action Viewport (gameplay only, nothing else may enter) ---- */
+#action-viewport{
+  flex: 0 0 50%;
+  min-height:0;
+  position:relative;
+  overflow:hidden;
+  background:#000;
+}
+#game-canvas{ display:block; width:100%; height:100%; }
+
+#hud{
+  position:absolute; top:0; left:0; right:0; padding:8px 12px;
+  display:flex; justify-content:space-between; align-items:flex-start;
+  pointer-events:none; background:linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+}
+.hud-box{ background:rgba(0,0,0,0.5); padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.2); font-family:var(--font-ui); }
+#era-display{ font-weight:800; font-size:calc(0.95rem * var(--text-scale)); }
+#streak-display{ font-size:calc(0.8rem * var(--text-scale)); color:var(--gold); }
+#shield-display{ font-size:calc(0.8rem * var(--text-scale)); color:#00ffff; }
+#pause-btn{
+  pointer-events:auto; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.25);
+  color:#fff; border-radius:8px; padding:6px 10px; font-size:1rem; cursor:pointer;
+}
+
+/* ---- BOTTOM 50%: Mind / Quiz Interface (all text & menus live here) ---- */
+#mind-viewport{
+  flex: 1 1 50%;
+  min-height:0;
+  background: linear-gradient(180deg, #0d0d16, #050508);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+  border-top: 2px solid #2a2a3a;
+}
+.panel{
+  display:none;
+  flex-direction:column;
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding: 16px 18px calc(16px + env(safe-area-inset-bottom, 0px)) 18px;
+}
+.panel.active{ display:flex; }
+
+.panel-title{ font-family:var(--font-title); font-weight:700; font-size:calc(1.4rem * var(--text-scale)); text-align:center; margin-bottom:10px; letter-spacing:0.5px; }
+.panel-sub{ font-family:var(--font-body); font-size:calc(0.85rem * var(--text-scale)); color:#aaa; text-align:center; margin-bottom:16px; line-height:1.5; }
+
+/* Buttons */
+.btn{
+  font-family:var(--font-ui); font-weight:700;
+  display:block; width:100%; padding:14px; margin-bottom:10px; min-height:48px;
+  background:#2a2a3a; color:#fff; border:1px solid #444; border-radius:10px;
+  font-size:calc(1rem * var(--text-scale)); cursor:pointer; transition:all .15s; text-align:center;
+  flex-shrink:0;
+}
+.btn:hover{ background:#3a3a5a; border-color:#666; }
+.btn:active{ transform:scale(0.98); }
+.btn.primary{ background:var(--accent); border-color:var(--accent); }
+.btn.primary:hover{ background:#5aa1f2; }
+.btn.correct{ background:#2e7d32; border-color:var(--success); }
+.btn.wrong{ background:#8c2222; border-color:var(--danger); opacity:.65; }
+.btn:disabled{ cursor:not-allowed; }
+.btn:disabled:not(.wrong):not(.correct){ opacity:.5; }
+
+.btn-row{ flex-shrink:0; }
+
+/* Question panel */
+#attempt-indicator{ text-align:center; font-size:calc(0.82rem * var(--text-scale)); color:#ffab91; min-height:1.2em; margin-bottom:8px; flex-shrink:0; }
+#timer-bar{ width:100%; height:6px; background:#333; border-radius:3px; margin-bottom:14px; overflow:hidden; flex-shrink:0; }
+#timer-fill{ height:100%; width:100%; background:var(--success); transition:width .1s linear, background-color .3s; }
+
+/* Stronghold */
+.stack-slot{ display:inline-block; width:45%; height:52px; border:2px dashed #5a2a2a; margin:4px; border-radius:8px; line-height:48px; font-size:calc(0.85rem * var(--text-scale)); vertical-align:middle; }
+.stack-slot.revealed{ border-style:solid; border-color:var(--success); color:#b9f6ca; }
+.bank-item{ display:inline-block; background:#3a1a1a; padding:9px 12px; margin:4px; border-radius:8px; cursor:pointer; border:1px solid #6a2a2a; font-size:calc(0.9rem * var(--text-scale)); }
+.bank-item:hover{ background:#5a2a2a; }
+
+/* Menu grid */
+.menu-links{ display:flex; flex-direction:column; gap:10px; flex-shrink:0; }
+
+/* Settings */
+.setting-row{ margin-bottom:18px; flex-shrink:0; }
+.setting-label{ font-size:calc(0.85rem * var(--text-scale)); color:#ccc; margin-bottom:6px; display:flex; justify-content:space-between; }
+.segmented{ display:flex; gap:6px; }
+.segmented button{ flex:1; padding:10px; border-radius:8px; border:1px solid #444; background:#20202e; color:#ccc; font-family:var(--font-ui); font-size:calc(0.85rem * var(--text-scale)); cursor:pointer; }
+.segmented button.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
+input[type=range]{ width:100%; }
+
+/* Achievements */
+.achv-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; flex-shrink:0; }
+.achv-card{ background:#181822; border:1px solid #333; border-radius:10px; padding:10px; text-align:center; }
+.achv-card.unlocked{ border-color:var(--gold); background:#241f10; }
+.achv-icon{ font-size:1.6rem; margin-bottom:4px; }
+.achv-name{ font-family:var(--font-ui); font-weight:700; font-size:calc(0.8rem * var(--text-scale)); margin-bottom:2px; }
+.achv-desc{ font-size:calc(0.68rem * var(--text-scale)); color:#999; }
+.achv-card.unlocked .achv-name{ color:var(--gold); }
+
+/* Scoreboard */
+.score-table{ width:100%; border-collapse:collapse; font-size:calc(0.82rem * var(--text-scale)); flex-shrink:0; }
+.score-table th,.score-table td{ padding:8px 6px; text-align:left; border-bottom:1px solid #222; }
+.score-table th{ color:#888; font-weight:500; font-size:calc(0.72rem * var(--text-scale)); text-transform:uppercase; }
+.score-name-input{ width:100%; padding:12px; border-radius:8px; border:1px solid #444; background:#1a1a24; color:#fff; font-size:calc(0.95rem * var(--text-scale)); margin-bottom:10px; flex-shrink:0; }
+
+/* Footer — persistent credit line, always visible, never scrolls away */
+#app-footer{
+  flex-shrink:0;
+  text-align:center;
+  font-family:var(--font-ui);
+  font-size:calc(0.68rem * var(--text-scale));
+  color:#555;
+  padding:6px 10px calc(6px + env(safe-area-inset-bottom,0px)) 10px;
+  border-top:1px solid #1a1a24;
+  background:#08080c;
+}
+
+/* How to Play */
+.howto-list{ display:flex; flex-direction:column; gap:10px; flex-shrink:0; }
+.howto-item{ display:flex; gap:10px; align-items:flex-start; font-size:calc(0.85rem * var(--text-scale)); line-height:1.4; color:#ccc; }
+.howto-num{
+  flex-shrink:0; width:22px; height:22px; border-radius:50%; background:var(--accent);
+  color:#fff; font-weight:800; font-size:calc(0.72rem * var(--text-scale));
+  display:flex; align-items:center; justify-content:center; margin-top:1px;
+}
+.howto-item strong{ color:#fff; }
+
+h1.title{ font-family:var(--font-title); font-size:calc(2.1rem * var(--text-scale)); text-align:center; text-shadow:0 0 10px var(--accent); margin-bottom:8px; }
+.small-link{ background:none; border:none; color:#888; font-size:calc(0.8rem * var(--text-scale)); text-decoration:underline; cursor:pointer; margin-top:6px; align-self:center; }
+
+/* Mobile tightening */
+@media (max-height:640px){
+  .panel{ padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px)) 14px; }
+  .panel-title{ font-size:calc(1.15rem * var(--text-scale)); margin-bottom:6px; }
+  .btn{ padding:11px; min-height:42px; margin-bottom:7px; }
+  .panel-sub{ margin-bottom:10px; }
+  #app-footer{ font-size:calc(0.6rem * var(--text-scale)); padding:4px 10px calc(4px + env(safe-area-inset-bottom,0px)) 10px; }
+  .howto-item{ font-size:calc(0.78rem * var(--text-scale)); gap:8px; }
+}
+@media (max-width:380px){
+  .achv-grid{ grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+<div id="game-shell">
+
+  <!-- ============ TOP 50%: ACTION VIEWPORT ============ -->
+  <div id="action-viewport">
+    <canvas id="game-canvas"></canvas>
+    <div id="hud" style="display:none;">
+      <div class="hud-box">
+        <div id="era-display">Era 1: Patriarchs</div>
+        <div id="streak-display">Streak: 0</div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:flex-start;">
+        <div class="hud-box" id="shield-display" style="display:none;">🛡️ Armor</div>
+        <button id="pause-btn">⏸</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ BOTTOM 50%: MIND / QUIZ INTERFACE ============ -->
+  <div id="mind-viewport">
+
+    <!-- Main Menu -->
+    <div class="panel active" id="panel-menu">
+      <h1 class="title">SAVE DYCSON</h1>
+      <div class="panel-sub">"Do not conform to the pattern of this world, but be transformed by the renewing of your mind." — Romans 12:2</div>
+      <div class="menu-links">
+        <button class="btn primary" id="menu-start">Start Journey</button>
+        <button class="btn" id="menu-howtoplay">How to Play</button>
+        <button class="btn" id="menu-achievements">Achievements</button>
+        <button class="btn" id="menu-scoreboard">Scoreboard</button>
+        <button class="btn" id="menu-settings">Settings</button>
+      </div>
+    </div>
+
+    <!-- How to Play -->
+    <div class="panel" id="panel-howtoplay">
+      <div class="panel-title">How to Play</div>
+      <div class="howto-list">
+        <div class="howto-item"><span class="howto-num">1</span><div><strong>The chase.</strong> Dycson runs toward the Light on the right. Dark smoke chases him from the left — if it catches him, it's game over.</div></div>
+        <div class="howto-item"><span class="howto-num">2</span><div><strong>Answer to advance.</strong> A Bible question appears in this panel with a countdown bar. Tap an answer before time runs out.</div></div>
+        <div class="howto-item"><span class="howto-num">3</span><div><strong>3 tries per question.</strong> A wrong pick is marked and you can try again — up to 3 attempts. The correct answer is only revealed after your 3rd miss or a timeout.</div></div>
+        <div class="howto-item"><span class="howto-num">4</span><div><strong>Correct = light.</strong> Right answers push the smoke back and brighten your world. Wrong answers (or timeouts) let it surge closer.</div></div>
+        <div class="howto-item"><span class="howto-num">5</span><div><strong>Stronghold of Doubt.</strong> Every 3rd round is a timeline puzzle — tap events in the bank in the correct chronological order, then hit "Break Wall". You also get 3 attempts here.</div></div>
+        <div class="howto-item"><span class="howto-num">6</span><div><strong>Streak shields.</strong> A 3-question streak earns Armor of Light, which absorbs the penalty of your next miss. A 10-streak earns it again.</div></div>
+        <div class="howto-item"><span class="howto-num">7</span><div><strong>Eras & scoring.</strong> Every 5 questions advances you to the next biblical era, from the Patriarchs to Revelation. Your Mind Renewal Score is saved to the Scoreboard when you finish.</div></div>
+      </div>
+      <button class="btn primary" id="howtoplay-back" style="margin-top:14px;">Back</button>
+    </div>
+
+    <!-- Settings -->
+    <div class="panel" id="panel-settings">
+      <div class="panel-title">Settings</div>
+      <div class="setting-row">
+        <div class="setting-label"><span>Difficulty (question timer)</span></div>
+        <div class="segmented" id="difficulty-seg">
+          <button data-val="easy">Easy · 20s</button>
+          <button data-val="medium">Medium · 15s</button>
+          <button data-val="hard">Hard · 10s</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-label"><span>Music (BGM)</span><span id="bgm-val">60%</span></div>
+        <input type="range" id="bgm-slider" min="0" max="100" value="60">
+      </div>
+      <div class="setting-row">
+        <div class="setting-label"><span>Sound Effects (SFX)</span><span id="sfx-val">80%</span></div>
+        <input type="range" id="sfx-slider" min="0" max="100" value="80">
+      </div>
+      <div class="setting-row">
+        <div class="setting-label"><span>Text Size</span></div>
+        <div class="segmented" id="textsize-seg">
+          <button data-val="normal">Normal</button>
+          <button data-val="large">Large</button>
+        </div>
+      </div>
+      <button class="btn primary" id="settings-back">Back</button>
+    </div>
+
+    <!-- Achievements -->
+    <div class="panel" id="panel-achievements">
+      <div class="panel-title">Scriptural Milestones</div>
+      <div class="achv-grid" id="achv-grid"></div>
+      <button class="btn primary" id="achv-back" style="margin-top:14px;">Back</button>
+    </div>
+
+    <!-- Scoreboard -->
+    <div class="panel" id="panel-scoreboard">
+      <div class="panel-title">Scoreboard</div>
+      <table class="score-table">
+        <thead><tr><th>Rank</th><th>Player</th><th>Era</th><th>Score</th></tr></thead>
+        <tbody id="score-rows"></tbody>
+      </table>
+      <button class="btn primary" id="score-back" style="margin-top:14px;">Back</button>
+    </div>
+
+    <!-- Question -->
+    <div class="panel" id="panel-question">
+      <div class="panel-title" id="question-text" style="font-family:var(--font-body); font-weight:500; font-size:calc(1.05rem * var(--text-scale));"></div>
+      <div id="attempt-indicator"></div>
+      <div id="timer-bar"><div id="timer-fill"></div></div>
+      <div id="choices-container" class="btn-row"></div>
+    </div>
+
+    <!-- Stronghold -->
+    <div class="panel" id="panel-stronghold">
+      <div class="panel-title" style="font-size:calc(1.1rem * var(--text-scale)); color:#ffcccc;">⚔️ Stronghold of Doubt ⚔️</div>
+      <div class="panel-sub" style="margin-bottom:6px;">Reorder the timeline to break the wall!</div>
+      <div id="sh-attempt-indicator" style="text-align:center; font-size:calc(0.82rem * var(--text-scale)); color:#ffab91; min-height:1.2em; margin-bottom:8px; flex-shrink:0;"></div>
+      <div id="timer-bar-sh" style="width:100%; height:6px; background:#333; border-radius:3px; margin-bottom:12px; overflow:hidden; flex-shrink:0;"><div id="timer-fill-sh" style="height:100%; width:100%; background:#ff5252; transition:width .1s linear;"></div></div>
+      <div id="stack-slots" style="text-align:center; margin-bottom:12px; flex-shrink:0;"></div>
+      <div id="item-bank" style="text-align:center; flex-shrink:0;"></div>
+      <button class="btn primary" id="submit-stronghold" style="margin-top:14px;">Break Wall</button>
+    </div>
+
+    <!-- Game Over -->
+    <div class="panel" id="panel-gameover">
+      <div class="panel-title" style="color:#ff5252;">Darkness Has Overcome</div>
+      <div class="panel-sub" id="gameover-stats"></div>
+      <input class="score-name-input" id="score-name-input" maxlength="16" placeholder="Enter your name for the scoreboard">
+      <button class="btn primary" id="save-score-btn">Save Score</button>
+      <button class="btn" id="restart-btn">Try Again</button>
+      <button class="btn" id="gameover-menu-btn">Main Menu</button>
+    </div>
+
+    <div id="app-footer">Made by Nana Kwame Dickson</div>
+  </div>
+</div>
+
+<script>
+// ==========================================================
+// 0. CONFIG, STORAGE, SETTINGS
+// ==========================================================
+const CONFIG = {
+  SPRITE_PATH: 'dycson_run.png',   // place alongside this HTML file
+  SPRITE_FRAME_COUNT: 23,          // matches the uploaded walking sheet (8000px / 23 frames)
+  SPRITE_FLIP_X: false,            // set true if the sprite faces left but should face right
+  BGM_PATH: 'dycson_bgm.mp3'       // optional; silently ignored if missing
+};
+
+const DIFFICULTY_TIME = { easy: 20000, medium: 15000, hard: 10000 };
+
+function loadJSON(key, fallback) {
+  try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; }
+  catch (e) { return fallback; }
+}
+function saveJSON(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+
+const Settings = {
+  data: loadJSON('saveDycson_settings', { difficulty: 'medium', bgmVolume: 0.6, sfxVolume: 0.8, textSize: 'normal' }),
+  save() { saveJSON('saveDycson_settings', this.data); },
+  apply() {
+    document.documentElement.style.setProperty('--text-scale', this.data.textSize === 'large' ? '1.18' : '1');
+    document.querySelectorAll('#difficulty-seg button').forEach(b => b.classList.toggle('active', b.dataset.val === this.data.difficulty));
+    document.querySelectorAll('#textsize-seg button').forEach(b => b.classList.toggle('active', b.dataset.val === this.data.textSize));
+    document.getElementById('bgm-slider').value = Math.round(this.data.bgmVolume * 100);
+    document.getElementById('sfx-slider').value = Math.round(this.data.sfxVolume * 100);
+    document.getElementById('bgm-val').innerText = Math.round(this.data.bgmVolume * 100) + '%';
+    document.getElementById('sfx-val').innerText = Math.round(this.data.sfxVolume * 100) + '%';
+    if (Audio.bgmEl) Audio.bgmEl.volume = this.data.bgmVolume;
+  }
+};
+
+const Achievements = {
+  meta: [
+    { id: 'patriarch', icon: '🪨', name: 'The Patriarch', desc: 'Clear Stage 1 without a single wrong answer' },
+    { id: 'unshakableFaith', icon: '🔥', name: 'Unshakable Faith', desc: 'Reach a 10-question streak' },
+    { id: 'swordOfSpirit', icon: '⚔️', name: 'Sword of the Spirit', desc: 'Answer correctly with under 1s left' },
+    { id: 'transformedMind', icon: '✨', name: 'Transformed Mind', desc: 'Accumulate 500 correct answers total' }
+  ],
+  data: loadJSON('saveDycson_achievements', { patriarch: false, unshakableFaith: false, swordOfSpirit: false, transformedMind: false }),
+  unlock(id) {
+    if (!this.data[id]) { this.data[id] = true; saveJSON('saveDycson_achievements', this.data); }
+  },
+  render() {
+    const grid = document.getElementById('achv-grid');
+    grid.innerHTML = '';
+    this.meta.forEach(a => {
+      const unlocked = !!this.data[a.id];
+      const card = document.createElement('div');
+      card.className = 'achv-card' + (unlocked ? ' unlocked' : '');
+      card.innerHTML = `<div class="achv-icon">${unlocked ? a.icon : '🔒'}</div><div class="achv-name">${a.name}</div><div class="achv-desc">${a.desc}</div>`;
+      grid.appendChild(card);
+    });
+  }
+};
+
+const Stats = { data: loadJSON('saveDycson_stats', { totalCorrect: 0 }) };
+
+const Scoreboard = {
+  data: loadJSON('saveDycson_scores', []),
+  add(name, era, score) {
+    this.data.push({ name: name || 'Anonymous', era, score });
+    this.data.sort((a, b) => b.score - a.score);
+    this.data = this.data.slice(0, 10);
+    saveJSON('saveDycson_scores', this.data);
+  },
+  render() {
+    const rows = document.getElementById('score-rows');
+    rows.innerHTML = '';
+    if (this.data.length === 0) {
+      rows.innerHTML = '<tr><td colspan="4" style="color:#666; text-align:center; padding:16px 0;">No scores yet — be the first!</td></tr>';
+      return;
+    }
+    this.data.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>#${i + 1}</td><td>${row.name}</td><td>${row.era}</td><td>${row.score}</td>`;
+      rows.appendChild(tr);
+    });
+  }
+};
+
+// Lightweight SFX via WebAudio (no external files needed); BGM via optional file.
+const Audio = {
+  ctx: null, bgmEl: null,
+  init() {
+    try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    this.bgmEl = new (window.Audio || Audio)(CONFIG.BGM_PATH);
+    this.bgmEl.loop = true;
+    this.bgmEl.volume = Settings.data.bgmVolume;
+    this.bgmEl.addEventListener('error', () => { this.bgmEl = null; }, { once: true });
+  },
+  playBGM() { if (this.bgmEl) this.bgmEl.play().catch(() => {}); },
+  beep(freq, dur) {
+    if (!this.ctx || Settings.data.sfxVolume <= 0) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.frequency.value = freq;
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    gain.gain.value = Settings.data.sfxVolume * 0.25;
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+    osc.stop(this.ctx.currentTime + dur);
+  },
+  correct() { this.beep(880, 0.18); },
+  wrong() { this.beep(160, 0.25); }
+};
+
+// ==========================================================
+// 1. STATIC LOCAL DATA STRUCTURES
+// ==========================================================
+const BIBLE_BOOKS = [
+  { name:"Genesis",testament:"Old",era:1,order:1 },{ name:"Exodus",testament:"Old",era:2,order:2 },
+  { name:"Leviticus",testament:"Old",era:2,order:3 },{ name:"Numbers",testament:"Old",era:2,order:4 },
+  { name:"Deuteronomy",testament:"Old",era:2,order:5 },{ name:"Joshua",testament:"Old",era:3,order:6 },
+  { name:"Judges",testament:"Old",era:3,order:7 },{ name:"Ruth",testament:"Old",era:3,order:8 },
+  { name:"1 Samuel",testament:"Old",era:3,order:9 },{ name:"2 Samuel",testament:"Old",era:3,order:10 },
+  { name:"1 Kings",testament:"Old",era:3,order:11 },{ name:"2 Kings",testament:"Old",era:3,order:12 },
+  { name:"1 Chronicles",testament:"Old",era:3,order:13 },{ name:"2 Chronicles",testament:"Old",era:3,order:14 },
+  { name:"Ezra",testament:"Old",era:3,order:15 },{ name:"Nehemiah",testament:"Old",era:3,order:16 },
+  { name:"Esther",testament:"Old",era:3,order:17 },{ name:"Job",testament:"Old",era:3,order:18 },
+  { name:"Psalms",testament:"Old",era:3,order:19 },{ name:"Proverbs",testament:"Old",era:3,order:20 },
+  { name:"Ecclesiastes",testament:"Old",era:3,order:21 },{ name:"Song of Solomon",testament:"Old",era:3,order:22 },
+  { name:"Isaiah",testament:"Old",era:4,order:23 },{ name:"Jeremiah",testament:"Old",era:4,order:24 },
+  { name:"Lamentations",testament:"Old",era:4,order:25 },{ name:"Ezekiel",testament:"Old",era:4,order:26 },
+  { name:"Daniel",testament:"Old",era:4,order:27 },{ name:"Hosea",testament:"Old",era:4,order:28 },
+  { name:"Joel",testament:"Old",era:4,order:29 },{ name:"Amos",testament:"Old",era:4,order:30 },
+  { name:"Obadiah",testament:"Old",era:4,order:31 },{ name:"Jonah",testament:"Old",era:4,order:32 },
+  { name:"Micah",testament:"Old",era:4,order:33 },{ name:"Nahum",testament:"Old",era:4,order:34 },
+  { name:"Habakkuk",testament:"Old",era:4,order:35 },{ name:"Zephaniah",testament:"Old",era:4,order:36 },
+  { name:"Haggai",testament:"Old",era:4,order:37 },{ name:"Zechariah",testament:"Old",era:4,order:38 },
+  { name:"Malachi",testament:"Old",era:4,order:39 },{ name:"Matthew",testament:"New",era:5,order:40 },
+  { name:"Mark",testament:"New",era:5,order:41 },{ name:"Luke",testament:"New",era:5,order:42 },
+  { name:"John",testament:"New",era:5,order:43 },{ name:"Acts",testament:"New",era:6,order:44 },
+  { name:"Romans",testament:"New",era:6,order:45 },{ name:"1 Corinthians",testament:"New",era:6,order:46 },
+  { name:"2 Corinthians",testament:"New",era:6,order:47 },{ name:"Galatians",testament:"New",era:6,order:48 },
+  { name:"Ephesians",testament:"New",era:6,order:49 },{ name:"Philippians",testament:"New",era:6,order:50 },
+  { name:"Colossians",testament:"New",era:6,order:51 },{ name:"1 Thessalonians",testament:"New",era:6,order:52 },
+  { name:"2 Thessalonians",testament:"New",era:6,order:53 },{ name:"1 Timothy",testament:"New",era:6,order:54 },
+  { name:"2 Timothy",testament:"New",era:6,order:55 },{ name:"Titus",testament:"New",era:6,order:56 },
+  { name:"Philemon",testament:"New",era:6,order:57 },{ name:"Hebrews",testament:"New",era:6,order:58 },
+  { name:"James",testament:"New",era:6,order:59 },{ name:"1 Peter",testament:"New",era:6,order:60 },
+  { name:"2 Peter",testament:"New",era:6,order:61 },{ name:"1 John",testament:"New",era:6,order:62 },
+  { name:"2 John",testament:"New",era:6,order:63 },{ name:"3 John",testament:"New",era:6,order:64 },
+  { name:"Jude",testament:"New",era:6,order:65 },{ name:"Revelation",testament:"New",era:7,order:66 }
+];
+
+const BIBLICAL_PAIRS = [
+  { subject:"Isaac",relation:"son",object:"Abraham",era:1 },{ subject:"Jacob",relation:"son",object:"Isaac",era:1 },
+  { subject:"Joseph",relation:"son",object:"Jacob",era:1 },{ subject:"Aaron",relation:"brother",object:"Moses",era:2 },
+  { subject:"Joshua",relation:"successor",object:"Moses",era:2 },{ subject:"Eleazar",relation:"son",object:"Aaron",era:2 },
+  { subject:"Jonathan",relation:"friend",object:"David",era:3 },{ subject:"Solomon",relation:"son",object:"David",era:3 },
+  { subject:"Joash",relation:"son",object:"Ahaziah",era:3 },{ subject:"Elisha",relation:"successor",object:"Elijah",era:4 },
+  { subject:"Baruch",relation:"scribe",object:"Jeremiah",era:4 },{ subject:"John the Baptist",relation:"forerunner",object:"Jesus",era:5 },
+  { subject:"Peter",relation:"disciple",object:"Jesus",era:5 },{ subject:"James",relation:"brother",object:"John",era:5 },
+  { subject:"Timothy",relation:"disciple",object:"Paul",era:6 },{ subject:"Titus",relation:"companion",object:"Paul",era:6 },
+  { subject:"Silas",relation:"companion",object:"Paul",era:6 }
+];
+
+const ERA_MILESTONES = [
+  { event:"Creation",era:1,order:1 },{ event:"The Fall",era:1,order:2 },{ event:"The Flood",era:1,order:3 },{ event:"Tower of Babel",era:1,order:4 },
+  { event:"Plagues of Egypt",era:2,order:1 },{ event:"Crossing Red Sea",era:2,order:2 },{ event:"Mt. Sinai & Law",era:2,order:3 },{ event:"Wandering 40 Yrs",era:2,order:4 },
+  { event:"Fall of Jericho",era:3,order:1 },{ event:"Judges Rule",era:3,order:2 },{ event:"Saul Crowned",era:3,order:3 },{ event:"Davidic Kingdom",era:3,order:4 },{ event:"Solomon's Temple",era:3,order:5 },
+  { event:"Kingdom Divides",era:4,order:1 },{ event:"Assyrian Exile",era:4,order:2 },{ event:"Babylonian Exile",era:4,order:3 },{ event:"Return to Judah",era:4,order:4 },{ event:"Rebuild Walls",era:4,order:5 },
+  { event:"Birth of Jesus",era:5,order:1 },{ event:"John Baptizes",era:5,order:2 },{ event:"Ministry in Galilee",era:5,order:3 },{ event:"The Crucifixion",era:5,order:4 },{ event:"The Resurrection",era:5,order:5 },
+  { event:"Pentecost",era:6,order:1 },{ event:"Stephen Martyred",era:6,order:2 },{ event:"Paul's 1st Journey",era:6,order:3 },{ event:"Jerusalem Council",era:6,order:4 },{ event:"Paul goes to Rome",era:6,order:5 },
+  { event:"Letters to Churches",era:7,order:1 },{ event:"Visions of Heaven",era:7,order:2 },{ event:"The Beast Defeated",era:7,order:3 },{ event:"New Jerusalem",era:7,order:4 }
+];
+
+const ERA_NAMES = ["Era 1: The Patriarchs","Era 2: Exodus & Law","Era 3: The Kingdom","Era 4: Prophets & Exile","Era 5: The Gospels","Era 6: Acts & Epistles","Era 7: Revelation"];
+
+const ERA_THEMES = [
+  { sky:['#2c1e16','#4a3520'], mid:'tent',    near:'rock' },
+  { sky:['#3a2e1e','#6b5230'], mid:'pyramid', near:'palm' },
+  { sky:['#2e2e36','#4a4a5a'], mid:'tower',   near:'pillar' },
+  { sky:['#1a1a22','#33333d'], mid:'ruin',    near:'cloud' },
+  { sky:['#2b2e1e','#4a5030'], mid:'tree',    near:'stone' },
+  { sky:['#1e2a33','#304550'], mid:'sail',    near:'wave' },
+  { sky:['#1c1c2e','#2e2e55'], mid:'ring',    near:'spire' }
+];
+
+// ==========================================================
+// 2. ALGORITHMIC QUESTION ENGINE
+// ==========================================================
+const QuestionEngine = {
+  shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; },
+  getRandomItem(arr){ return arr[Math.floor(Math.random()*arr.length)]; },
+  generateChronological(era){
+    const valid = BIBLE_BOOKS.filter(b => b.order < 66);
+    const base = this.getRandomItem(valid);
+    const next = BIBLE_BOOKS.find(b => b.order === base.order + 1);
+    const distractors = this.shuffle(BIBLE_BOOKS.filter(b => b.name !== next.name)).slice(0, 3);
+    const choices = this.shuffle([next.name, ...distractors.map(d => d.name)]);
+    return { text:`Which book comes immediately AFTER ${base.name}?`, choices, correct: choices.indexOf(next.name) };
+  },
+  generateTestament(era){
+    const currTest = era <= 4 ? 'Old' : 'New';
+    const oppTest = currTest === 'Old' ? 'New' : 'Old';
+    const maj = this.shuffle(BIBLE_BOOKS.filter(b => b.testament === currTest)).slice(0, 3);
+    const min = this.getRandomItem(BIBLE_BOOKS.filter(b => b.testament === oppTest));
+    const choices = this.shuffle([...maj.map(b => b.name), min.name]);
+    const text = currTest === 'Old' ? "Three of these are Old Testament. Which one does NOT belong?" : "Three of these are New Testament. Which one does NOT belong?";
+    return { text, choices, correct: choices.indexOf(min.name) };
+  },
+  generateRelationship(era){
+    const eraPairs = BIBLICAL_PAIRS.filter(p => p.era === era);
+    if (eraPairs.length < 2) return this.generateChronological(era);
+    const pair = this.getRandomItem(eraPairs);
+    const distractors = this.shuffle(BIBLICAL_PAIRS.filter(p => p.object !== pair.object)).slice(0, 3).map(p => p.object);
+    const choices = this.shuffle([pair.object, ...distractors]);
+    return { text:`${pair.subject} was famously the ${pair.relation} of whom?`, choices, correct: choices.indexOf(pair.object) };
+  },
+  generateQuestion(era){
+    const templates = [this.generateChronological, this.generateTestament, this.generateRelationship];
+    return this.getRandomItem(templates).call(this, era);
+  },
+  generateStronghold(era){
+    let pool = ERA_MILESTONES.filter(m => m.era === era);
+    if (pool.length < 4) pool = BIBLE_BOOKS.filter(b => b.era === era).map(b => ({ event: b.name, order: b.order }));
+    const items = this.shuffle(pool).slice(0, 4);
+    const correctOrder = [...items].sort((a, b) => a.order - b.order).map(i => i.event);
+    return { display: this.shuffle(items.map(i => i.event)), correctOrder };
+  }
+};
+
+// ==========================================================
+// 3. GAME ENGINE
+// ==========================================================
+const Game = {
+  canvas:null, ctx:null, width:0, height:0,
+  state:'menu', // menu, settings, achievements, scoreboard, playing, question, stronghold, gameover, paused
+  era:1, lightLevel:40, streak:0, shields:0, sessionScore:0, eraOneWrongCount:0,
+  questionsInEra:0, questionsPerEra:5,
+
+  dycsonX:0, dycsonY:0, glow:0, runPhase:0,
+  smokeX:0, smokeTargetX:0,
+  parallax:{ far:[], mid:[], near:[] }, bgOffset:0,
+  sprite:{ img:new Image(), loaded:false, frameCount:CONFIG.SPRITE_FRAME_COUNT, frameW:0, frameH:0 },
+
+  timerInterval:null, timeLeft:0, maxTime:10000,
+  currentQuestion:null, currentStronghold:null, selectedStack:[],
+  questionWrongAttempts:0, strongholdWrongAttempts:0, resolvingStronghold:false,
+
+  init(){
+    this.canvas = document.getElementById('game-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.setVH();
+    window.addEventListener('resize', () => { this.setVH(); this.resize(); });
+    window.addEventListener('orientationchange', () => { this.setVH(); this.resize(); });
+    this.resize();
+
+    this.sprite.img.onload = () => {
+      this.sprite.loaded = true;
+      this.sprite.frameW = this.sprite.img.naturalWidth / this.sprite.frameCount;
+      this.sprite.frameH = this.sprite.img.naturalHeight;
+    };
+    this.sprite.img.onerror = () => { this.sprite.loaded = false; };
+    this.sprite.img.src = CONFIG.SPRITE_PATH;
+
+    Audio.init();
+    this.bindUI();
+    Settings.apply();
+    Achievements.render();
+    Scoreboard.render();
+    this.generateParallaxLayers();
+    this.loop();
+  },
+
+  setVH(){ document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`); },
+
+  resize(){
+    const rect = this.canvas.getBoundingClientRect();
+    this.width = rect.width; this.height = rect.height;
+    this.canvas.width = this.width; this.canvas.height = this.height;
+    this.dycsonX = this.width * 0.6;
+    this.dycsonY = this.height * 0.68;
+    this.generateParallaxLayers();
+  },
+
+  bindUI(){
+    document.getElementById('menu-start').onclick = () => this.start();
+    document.getElementById('menu-howtoplay').onclick = () => this.showPanel('howtoplay');
+    document.getElementById('howtoplay-back').onclick = () => this.showPanel('menu');
+    document.getElementById('menu-achievements').onclick = () => this.showPanel('achievements');
+    document.getElementById('menu-scoreboard').onclick = () => this.showPanel('scoreboard');
+    document.getElementById('menu-settings').onclick = () => this.showPanel('settings');
+    document.getElementById('settings-back').onclick = () => this.showPanel('menu');
+    document.getElementById('achv-back').onclick = () => this.showPanel('menu');
+    document.getElementById('score-back').onclick = () => this.showPanel('menu');
+    document.getElementById('restart-btn').onclick = () => this.start();
+    document.getElementById('gameover-menu-btn').onclick = () => this.showPanel('menu');
+    document.getElementById('save-score-btn').onclick = () => this.saveScore();
+    document.getElementById('submit-stronghold').onclick = () => this.checkStronghold();
+    document.getElementById('pause-btn').onclick = () => this.togglePause();
+
+    document.querySelectorAll('#difficulty-seg button').forEach(b => b.onclick = () => {
+      Settings.data.difficulty = b.dataset.val; Settings.save(); Settings.apply();
+    });
+    document.querySelectorAll('#textsize-seg button').forEach(b => b.onclick = () => {
+      Settings.data.textSize = b.dataset.val; Settings.save(); Settings.apply();
+    });
+    document.getElementById('bgm-slider').oninput = (e) => {
+      Settings.data.bgmVolume = e.target.value / 100; Settings.save(); Settings.apply();
+    };
+    document.getElementById('sfx-slider').oninput = (e) => {
+      Settings.data.sfxVolume = e.target.value / 100; Settings.save(); Settings.apply();
+    };
+  },
+
+  showPanel(name){
+    this.state = name;
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + name).classList.add('active');
+    document.getElementById('hud').style.display = (name === 'question' || name === 'stronghold') ? 'flex' : 'none';
+    if (name === 'achievements') Achievements.render();
+    if (name === 'scoreboard') Scoreboard.render();
+  },
+
+  togglePause(){
+    if (this.state === 'question' || this.state === 'stronghold') {
+      clearInterval(this.timerInterval);
+      this.pausedFrom = this.state;
+      this.showPanel('menu');
+    }
+  },
+
+  // ---------- Parallax ----------
+  generateParallaxLayers(){
+    const w = this.width || 300;
+    const mk = (count, ySpread) => {
+      const arr = [];
+      for (let i = 0; i < count; i++) arr.push({ x:(i / count) * w * 2 + (Math.random()*80-40), y: ySpread.min + Math.random()*(ySpread.max-ySpread.min), size: 24 + Math.random()*40 });
+      return arr;
+    };
+    this.parallax.far = mk(9, { min:this.height*0.30, max:this.height*0.5 });
+    this.parallax.mid = mk(6, { min:this.height*0.45, max:this.height*0.62 });
+    this.parallax.near = mk(12, { min:this.height*0.68, max:this.height*0.9 });
+  },
+
+  // ---------- Game flow ----------
+  start(){
+    this.state = 'playing';
+    this.era = 1; this.lightLevel = 40; this.streak = 0; this.shields = 0;
+    this.sessionScore = 0; this.eraOneWrongCount = 0;
+    this.questionsInEra = 0; this.smokeX = 0; this.smokeTargetX = 0;
+    this.generateParallaxLayers();
+    Audio.playBGM();
+    this.showPanel('menu'); // temp, immediately overridden below
+    document.getElementById('hud').style.display = 'flex';
+    this.updateHUD();
+    this.updateMindTint();
+    this.nextRound();
+  },
+
+  nextRound(){
+    if (this.questionsInEra >= this.questionsPerEra) {
+      this.era++;
+      if (this.era > 7) this.era = 7;
+      this.questionsInEra = 0;
+      this.generateParallaxLayers();
+      this.updateHUD();
+    }
+    if (this.questionsInEra > 0 && this.questionsInEra % 3 === 0) this.startStronghold();
+    else this.startQuestion();
+  },
+
+  // ---------- Questions (3-attempt retry) ----------
+  startQuestion(){
+    this.showPanel('question');
+    this.currentQuestion = QuestionEngine.generateQuestion(this.era);
+    this.questionWrongAttempts = 0;
+    this.maxTime = DIFFICULTY_TIME[Settings.data.difficulty];
+    this.timeLeft = this.maxTime;
+
+    document.getElementById('question-text').innerText = this.currentQuestion.text;
+    document.getElementById('attempt-indicator').innerText = '';
+    const box = document.getElementById('choices-container');
+    box.innerHTML = '';
+    this.currentQuestion.choices.forEach((choice, index) => {
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.innerText = choice;
+      btn.onclick = () => this.answerQuestion(index);
+      box.appendChild(btn);
+    });
+    this.startTimer('timer-fill', () => this.answerQuestion(-1));
+  },
+
+  answerQuestion(index){
+    const btns = Array.from(document.querySelectorAll('#choices-container .btn'));
+    const timedOut = index === -1;
+    const isCorrect = !timedOut && index === this.currentQuestion.correct;
+
+    if (isCorrect) {
+      clearInterval(this.timerInterval);
+      btns[index].classList.add('correct');
+      btns.forEach(b => b.disabled = true);
+      Audio.correct();
+      if (this.timeLeft < 1000) Achievements.unlock('swordOfSpirit');
+      Stats.data.totalCorrect++;
+      saveJSON('saveDycson_stats', Stats.data);
+      if (Stats.data.totalCorrect >= 500) Achievements.unlock('transformedMind');
+
+      this.streak++;
+      this.sessionScore += 10 + this.era * 2;
+      this.lightLevel = Math.min(100, this.lightLevel + 15);
+      this.smokeTargetX -= 100;
+      this.glow = 50;
+      if (this.streak === 3) this.shields = 1;
+      if (this.streak === 5) this.lightLevel = 100;
+      if (this.streak === 10) { this.shields = 2; Achievements.unlock('unshakableFaith'); }
+      this.questionsInEra++;
+      this.updateHUD(); this.updateMindTint();
+      setTimeout(() => this.checkGameOver(), 1000);
+      return;
+    }
+
+    if (!timedOut) {
+      this.questionWrongAttempts++;
+      btns[index].classList.add('wrong');
+      btns[index].disabled = true;
+      if (this.era === 1) this.eraOneWrongCount++;
+      Audio.wrong();
+    } else {
+      this.questionWrongAttempts = 3;
+      if (this.era === 1) this.eraOneWrongCount++;
+    }
+
+    const outOfAttempts = this.questionWrongAttempts >= 3;
+    if (!outOfAttempts) {
+      document.getElementById('attempt-indicator').innerText = `Not quite — try again (attempt ${this.questionWrongAttempts}/3)`;
+      this.smokeTargetX += 40;
+      this.updateMindTint();
+      return;
+    }
+
+    clearInterval(this.timerInterval);
+    if (this.currentQuestion.correct >= 0) btns[this.currentQuestion.correct].classList.add('correct');
+    btns.forEach(b => b.disabled = true);
+    document.getElementById('attempt-indicator').innerText = timedOut ? "Time's up! Here's the answer:" : "Out of attempts — here's the answer:";
+
+    if (this.shields > 0) { this.shields--; this.smokeTargetX += 50; }
+    else { this.streak = 0; this.lightLevel = Math.max(10, this.lightLevel - 30); this.smokeTargetX += 200; }
+
+    this.updateHUD(); this.updateMindTint();
+    setTimeout(() => this.checkGameOver(), 1600);
+  },
+
+  // ---------- Stronghold (3-attempt retry) ----------
+  startStronghold(){
+    this.showPanel('stronghold');
+    this.currentStronghold = QuestionEngine.generateStronghold(this.era);
+    this.selectedStack = [];
+    this.strongholdWrongAttempts = 0;
+    this.resolvingStronghold = false;
+    this.maxTime = DIFFICULTY_TIME[Settings.data.difficulty] + 5000;
+    this.timeLeft = this.maxTime;
+    document.getElementById('sh-attempt-indicator').innerText = '';
+    this.renderStrongholdSlots();
+    this.renderStrongholdBank();
+    this.startTimer('timer-fill-sh', () => this.checkStronghold(true));
+  },
+
+  renderStrongholdSlots(){
+    document.getElementById('stack-slots').innerHTML =
+      '1: <span class="stack-slot" id="slot-0"></span><br>2: <span class="stack-slot" id="slot-1"></span><br>3: <span class="stack-slot" id="slot-2"></span><br>4: <span class="stack-slot" id="slot-3"></span>';
+  },
+  renderStrongholdBank(){
+    const bank = document.getElementById('item-bank');
+    bank.innerHTML = '';
+    this.currentStronghold.display.forEach(item => {
+      const btn = document.createElement('div');
+      btn.className = 'bank-item';
+      btn.innerText = item;
+      btn.onclick = () => {
+        if (this.resolvingStronghold) return;
+        if (this.selectedStack.length < 4 && !this.selectedStack.includes(item)) {
+          this.selectedStack.push(item);
+          btn.style.visibility = 'hidden';
+          document.getElementById(`slot-${this.selectedStack.length - 1}`).innerText = item;
+        }
+      };
+      bank.appendChild(btn);
+    });
+  },
+
+  checkStronghold(timeout=false){
+    if (timeout) { this.resolveStronghold(false, true); return; }
+    const isCorrect = JSON.stringify(this.selectedStack) === JSON.stringify(this.currentStronghold.correctOrder);
+    if (isCorrect) { this.resolveStronghold(true, false); return; }
+
+    this.strongholdWrongAttempts++;
+    if (this.era === 1) this.eraOneWrongCount++;
+    if (this.strongholdWrongAttempts < 3) {
+      document.getElementById('sh-attempt-indicator').innerText = `Wrong order — try again (attempt ${this.strongholdWrongAttempts}/3)`;
+      this.smokeTargetX += 60;
+      Audio.wrong();
+      this.updateMindTint();
+      this.selectedStack = [];
+      this.renderStrongholdSlots(); this.renderStrongholdBank();
+      return;
+    }
+    this.resolveStronghold(false, false);
+  },
+
+  resolveStronghold(success, timedOut){
+    clearInterval(this.timerInterval);
+    this.resolvingStronghold = true;
+
+    if (success) {
+      Audio.correct();
+      this.streak++;
+      this.sessionScore += 25 + this.era * 3;
+      this.lightLevel = Math.min(100, this.lightLevel + 25);
+      this.smokeTargetX -= 250;
+      this.glow = 80;
+      this.questionsInEra++;
+      if (this.streak === 10) Achievements.unlock('unshakableFaith');
+    } else {
+      this.currentStronghold.correctOrder.forEach((ev, i) => {
+        const slot = document.getElementById(`slot-${i}`);
+        slot.innerText = ev; slot.classList.add('revealed');
+      });
+      document.getElementById('sh-attempt-indicator').innerText = timedOut ? "Time's up! Correct order:" : "Out of attempts — correct order:";
+      if (this.shields > 0) { this.shields--; this.smokeTargetX += 100; }
+      else { this.streak = 0; this.lightLevel = Math.max(10, this.lightLevel - 40); this.smokeTargetX += 350; }
+    }
+    this.updateHUD(); this.updateMindTint();
+    setTimeout(() => this.checkGameOver(), success ? 800 : 1600);
+  },
+
+  startTimer(elementId, callback){
+    clearInterval(this.timerInterval);
+    const fillEl = document.getElementById(elementId);
+    fillEl.style.width = '100%'; fillEl.style.background = '#4caf50';
+    this.timerInterval = setInterval(() => {
+      this.timeLeft -= 100;
+      const percent = Math.max(0, (this.timeLeft / this.maxTime) * 100);
+      fillEl.style.width = `${percent}%`;
+      if (percent < 30) fillEl.style.background = '#ff5252';
+      if (this.timeLeft <= 0) { clearInterval(this.timerInterval); callback(); }
+    }, 100);
+  },
+
+  checkGameOver(){
+    if (this.era === 1 && this.questionsInEra >= this.questionsPerEra && this.eraOneWrongCount === 0) {
+      Achievements.unlock('patriarch');
+    }
+    if (this.smokeX >= this.dycsonX - 50) this.gameOver();
+    else this.nextRound();
+  },
+
+  gameOver(){
+    this.showPanel('gameover');
+    document.getElementById('hud').style.display = 'none';
+    document.getElementById('gameover-stats').innerText = `You reached ${ERA_NAMES[this.era-1]}. Streak: ${this.streak}. Mind Renewal Score: ${this.sessionScore}`;
+    document.getElementById('score-name-input').value = '';
+  },
+
+  saveScore(){
+    const name = document.getElementById('score-name-input').value.trim();
+    Scoreboard.add(name, ERA_NAMES[this.era-1], this.sessionScore);
+    document.getElementById('save-score-btn').innerText = 'Saved ✓';
+    document.getElementById('save-score-btn').disabled = true;
+  },
+
+  updateHUD(){
+    document.getElementById('era-display').innerText = ERA_NAMES[this.era - 1];
+    document.getElementById('streak-display').innerText = `Streak: ${this.streak}`;
+    const shd = document.getElementById('shield-display');
+    shd.style.display = this.shields > 0 ? 'block' : 'none';
+    shd.innerText = `🛡️ Armor x${this.shields}`;
+  },
+
+  updateMindTint(){
+    // subtle ambient mood only; the real proximity bleed happens on canvas below
+  },
+
+  // ---------- Update / Draw ----------
+  update(){
+    this.smokeX += (this.smokeTargetX - this.smokeX) * 0.05;
+    this.smokeX = Math.max(0, this.smokeX);
+    this.glow *= 0.95;
+    this.runPhase += (this.state === 'question' || this.state === 'stronghold') ? 0.15 : 0.03;
+    this.bgOffset -= 1.3;
+  },
+
+  drawShape(kind, x, y, s, color){
+    const ctx = this.ctx;
+    ctx.fillStyle = color; ctx.strokeStyle = color;
+    switch (kind) {
+      case 'hill': ctx.beginPath(); ctx.ellipse(x,y,s*1.4,s*0.7,0,Math.PI,0); ctx.fill(); break;
+      case 'tent': ctx.beginPath(); ctx.moveTo(x-s,y); ctx.lineTo(x,y-s*1.3); ctx.lineTo(x+s,y); ctx.closePath(); ctx.fill(); break;
+      case 'pyramid': ctx.beginPath(); ctx.moveTo(x-s*1.2,y); ctx.lineTo(x,y-s*1.5); ctx.lineTo(x+s*1.2,y); ctx.closePath(); ctx.fill(); break;
+      case 'tower': ctx.fillRect(x-s*0.35,y-s*1.8,s*0.7,s*1.8); ctx.fillRect(x-s*0.5,y-s*2.0,s,s*0.25); break;
+      case 'ruin': ctx.beginPath(); ctx.moveTo(x-s*0.8,y); ctx.lineTo(x-s*0.8,y-s*0.6); ctx.lineTo(x-s*0.3,y-s*1.1); ctx.lineTo(x+s*0.2,y-s*0.5); ctx.lineTo(x+s*0.8,y-s*0.9); ctx.lineTo(x+s*0.8,y); ctx.closePath(); ctx.fill(); break;
+      case 'tree': ctx.beginPath(); ctx.arc(x,y-s*0.9,s*0.55,0,Math.PI*2); ctx.fill(); ctx.fillRect(x-s*0.08,y-s*0.5,s*0.16,s*0.5); break;
+      case 'sail': ctx.beginPath(); ctx.moveTo(x,y-s*1.5); ctx.lineTo(x,y); ctx.lineTo(x+s*0.9,y); ctx.closePath(); ctx.fill(); ctx.fillRect(x-s*0.05,y-s*0.2,s*0.1,s*0.2); break;
+      case 'ring': ctx.beginPath(); ctx.ellipse(x,y,s*1.1,s*0.35,0.4,0,Math.PI*2); ctx.globalAlpha=0.5; ctx.lineWidth=3; ctx.stroke(); ctx.globalAlpha=1; break;
+      case 'rock': ctx.beginPath(); ctx.ellipse(x,y,s*0.5,s*0.3,0,0,Math.PI*2); ctx.fill(); break;
+      case 'palm': ctx.fillRect(x-s*0.06,y-s*0.7,s*0.12,s*0.7); for(let i=-2;i<=2;i++){ ctx.beginPath(); ctx.ellipse(x+i*s*0.15,y-s*0.75,s*0.35,s*0.1,i*0.3,0,Math.PI*2); ctx.fill(); } break;
+      case 'pillar': ctx.fillRect(x-s*0.15,y-s*1.4,s*0.3,s*1.4); ctx.fillRect(x-s*0.25,y-s*1.5,s*0.5,s*0.12); break;
+      case 'cloud': ctx.globalAlpha=0.6; ctx.beginPath(); ctx.ellipse(x,y,s*0.6,s*0.3,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(x+s*0.4,y-s*0.1,s*0.4,s*0.25,0,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; break;
+      case 'stone': ctx.beginPath(); ctx.ellipse(x,y,s*0.3,s*0.18,0,0,Math.PI*2); ctx.fill(); break;
+      case 'wave': ctx.lineWidth=2; ctx.globalAlpha=0.5; ctx.beginPath(); ctx.arc(x,y,s*0.5,Math.PI,0); ctx.stroke(); ctx.globalAlpha=1; break;
+      case 'spire': ctx.beginPath(); ctx.moveTo(x,y-s*1.8); ctx.lineTo(x-s*0.25,y); ctx.lineTo(x+s*0.25,y); ctx.closePath(); ctx.fill(); break;
+    }
+  },
+
+  shade(hex, percent){
+    const num = parseInt(hex.slice(1), 16);
+    let r=(num>>16)+percent, g=((num>>8)&0xff)+percent, b=(num&0xff)+percent;
+    r=Math.min(255,Math.max(0,r)); g=Math.min(255,Math.max(0,g)); b=Math.min(255,Math.max(0,b));
+    return `rgb(${r},${g},${b})`;
+  },
+
+  drawParallax(theme){
+    const w = this.width;
+    this.parallax.far.forEach(h => { const x = ((h.x + this.bgOffset*0.2) % (w*2+100) + (w*2+100)) % (w*2+100) - 100; this.drawShape('hill', x, h.y, h.size, this.shade(theme.sky[1], -10)); });
+    this.parallax.mid.forEach(h => { const x = ((h.x + this.bgOffset*0.5) % (w*2+100) + (w*2+100)) % (w*2+100) - 100; this.drawShape(theme.mid, x, h.y, h.size*0.6, this.shade(theme.sky[1], -25)); });
+    this.parallax.near.forEach(h => { const x = ((h.x + this.bgOffset*1.1) % (w*2+100) + (w*2+100)) % (w*2+100) - 100; this.drawShape(theme.near, x, h.y, h.size*0.4, this.shade(theme.sky[1], -40)); });
+  },
+
+  // Smoke tendrils: multi-layer sine-wave curls reaching toward Dycson
+  drawSmoke(){
+    const ctx = this.ctx;
+    const t = this.bgOffset * -0.02;
+    const tendrils = 5;
+    for (let i = 0; i < tendrils; i++) {
+      const baseY = (this.height / tendrils) * i + (this.height / tendrils) * 0.5;
+      const reach = 60 + (this.smokeX / Math.max(1, this.dycsonX)) * 140; // reaches further as it catches up
+      ctx.beginPath();
+      ctx.moveTo(0, baseY - 30);
+      for (let y = -30; y <= 30; y += 6) {
+        const wobble = Math.sin(t * 2 + i * 1.3 + y * 0.05) * 18 + Math.sin(t * 4.2 + i) * 8;
+        const x = this.smokeX + wobble + Math.max(0, Math.sin(t * 1.5 + i) * reach * 0.3);
+        ctx.lineTo(Math.max(0, x), baseY + y);
+      }
+      ctx.lineTo(0, baseY + 30);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, baseY, this.smokeX + reach, baseY);
+      grad.addColorStop(0, 'rgba(5,5,10,0.95)');
+      grad.addColorStop(1, 'rgba(10,10,20,0)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+  },
+
+  draw(){
+    const ctx = this.ctx;
+    if (!this.width) return;
+    const theme = ERA_THEMES[this.era - 1];
+
+    let grad = ctx.createLinearGradient(0,0,0,this.height);
+    grad.addColorStop(0, theme.sky[0]); grad.addColorStop(1, theme.sky[1]);
+    ctx.fillStyle = grad; ctx.fillRect(0,0,this.width,this.height);
+
+    this.drawParallax(theme);
+
+    // Beacon of light, right side
+    const beaconX = this.width - 30;
+    const beaconGrad = ctx.createRadialGradient(beaconX, this.height/2, 8, beaconX, this.height/2, this.width*0.4);
+    beaconGrad.addColorStop(0, `rgba(255,250,210,${0.35 + this.lightLevel/200})`);
+    beaconGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = beaconGrad;
+    ctx.fillRect(Math.max(0,this.width - this.width*0.45), 0, this.width*0.45, this.height);
+
+    this.drawSmoke();
+
+    // Proximity color bleed: smokeX / dycsonX ratio drives a saturation-blend desaturation
+    const ratio = Math.min(1, this.smokeX / Math.max(1, this.dycsonX));
+    ctx.save();
+    ctx.globalCompositeOperation = 'saturation';
+    const bleedEdge = this.smokeX + 150 + ratio * 200;
+    const desatGrad = ctx.createLinearGradient(0,0,bleedEdge,0);
+    desatGrad.addColorStop(0, `rgba(128,128,128,${0.5 + ratio*0.5})`);
+    desatGrad.addColorStop(1, 'rgba(128,128,128,0)');
+    ctx.fillStyle = desatGrad;
+    ctx.fillRect(0,0,Math.max(0,bleedEdge), this.height);
+    ctx.restore();
+
+    this.drawDycson();
+  },
+
+  drawDycson(){
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(this.dycsonX, this.dycsonY);
+
+    const radiusBase = 30 + this.lightLevel * 0.45;
+    const radius = radiusBase + this.glow;
+    const haloGrad = ctx.createRadialGradient(0,-10,4,0,-10,radius);
+    haloGrad.addColorStop(0, `rgba(255,245,200,${0.35 + this.lightLevel/250})`);
+    haloGrad.addColorStop(1, 'rgba(255,245,200,0)');
+    ctx.fillStyle = haloGrad;
+    ctx.beginPath(); ctx.arc(0,-10,radius,0,Math.PI*2); ctx.fill();
+
+    if (this.sprite.loaded) {
+      const frame = Math.floor(this.runPhase * 6) % this.sprite.frameCount;
+      const scale = 70 / this.sprite.frameH;
+      const dw = this.sprite.frameW * scale, dh = this.sprite.frameH * scale;
+      if (this.glow > 5) { ctx.shadowColor = 'gold'; ctx.shadowBlur = this.glow; }
+      if (CONFIG.SPRITE_FLIP_X) ctx.scale(-1, 1);
+      ctx.drawImage(this.sprite.img, frame * this.sprite.frameW, 0, this.sprite.frameW, this.sprite.frameH, -dw/2, -dh*0.65, dw, dh);
+      ctx.shadowBlur = 0;
+    } else {
+      if (this.glow > 5) { ctx.shadowColor = 'gold'; ctx.shadowBlur = this.glow; }
+      ctx.fillStyle = '#fff2d6';
+      ctx.beginPath(); ctx.arc(0,0,15,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#e8dcc0';
+      ctx.beginPath(); ctx.moveTo(-12,15); ctx.lineTo(12,15); ctx.lineTo(9,46); ctx.lineTo(-9,46); ctx.closePath(); ctx.fill();
+      ctx.shadowBlur = 0;
+      const legOffset = Math.sin(this.runPhase*6)*7;
+      ctx.fillStyle = '#d8cba8';
+      ctx.fillRect(-9,45,7,14+legOffset);
+      ctx.fillRect(2,45,7,14-legOffset);
+    }
+    ctx.restore();
+  },
+
+  loop(){ this.update(); this.draw(); requestAnimationFrame(() => this.loop()); }
+};
+
+Game.init();
+</script>
+</body>
+</html>
